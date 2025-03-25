@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Price Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script defer src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <h2>Food Price Prediction</h2>
+    
+    <label for="region">Region:</label>
+    <select id="region"></select> <br>
+
+    <label for="county">County:</label>
+    <select id="county"></select> <br>
+
+    <label for="market">Market:</label>
+    <select id="market"></select> <br>
+
+    <label for="category">Category:</label>
+    <select id="category"></select> <br>
+
+    <label for="commodity">Commodity:</label>
+    <select id="commodity"></select> <br>
+
+    <label for="unit">Unit:</label>
+    <select id="unit"></select> <br>
+
+    <label for="latitude">Latitude:</label>
+    <input type="text" id="latitude"> <br>
+
+    <label for="longitude">Longitude:</label>
+    <input type="text" id="longitude"> <br>
+
+    <button onclick="predictPrice()">Predict Price</button>
+
+    <h3 id="predictionResult"></h3>
+</body>
+</html>
