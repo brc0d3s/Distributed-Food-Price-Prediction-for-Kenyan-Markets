@@ -9,33 +9,30 @@
 </head>
 <body>
     <h2>Food Price Prediction</h2>
-    
-    <label for="region">Region:</label>
-    <select id="region"></select> <br>
+    <div class="form-container">
+        <label for="region">Region:</label>
+        <select id="region"></select> <br>
 
-    <label for="county">County:</label>
-    <select id="county"></select> <br>
+        <label for="county">County:</label>
+        <select id="county"></select> <br>
 
-    <label for="market">Market:</label>
-    <select id="market"></select> <br>
+        <label for="market">Market:</label>
+        <select id="market"></select> <br>
 
-    <label for="category">Category:</label>
-    <select id="category"></select> <br>
+        <label for="category">Category:</label>
+        <select id="category"></select> <br>
 
-    <label for="commodity">Commodity:</label>
-    <select id="commodity"></select> <br>
+        <label for="commodity">Commodity:</label>
+        <select id="commodity"></select> <br>
 
-    <label for="unit">Unit:</label>
-    <select id="unit"></select> <br>
+        <label for="unit">Unit:</label>
+        <select id="unit"></select> <br>
 
-    <label for="latitude">Latitude:</label>
-    <input type="text" id="latitude"> <br>
+        <button onclick="predictPrice()">Predict Price</button>
 
-    <label for="longitude">Longitude:</label>
-    <input type="text" id="longitude"> <br>
+        <h3 id="predictionResult"></h3><br>
 
-    <button onclick="predictPrice()">Predict Price</button>
-
-    <h3 id="predictionResult"></h3>
+        <h3>RECOMMENDED: Buying in bulk will save on general cost</h3>
+    </div>
 </body>
 </html>

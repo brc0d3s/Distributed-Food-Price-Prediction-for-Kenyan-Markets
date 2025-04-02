@@ -1,12 +1,9 @@
 from flask import Flask, render_template, request, jsonify
-from pyspark.ml.regression import GBTRegressionModel
-from pyspark.ml.feature import VectorAssembler
 from pyspark.ml import PipelineModel
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, Row
 
 app = Flask(__name__)
 
-# Dropdown data
 dropdown_data = {
     "region": ['Rift Valley', 'Eastern', 'North Eastern', 'Nyanza', 'Coast', 'Central', 'Nairobi'],
     "county": ['Uasin Gishu', 'Nakuru', 'Mandera', 'Kisumu', 'Marsabit', 'Wajir', 'Kajiado', 'Turkana', 'Mombasa', 'Kwale', 'Makueni', 'Meru South', 'Garissa', 'Nairobi', 'Isiolo', 'Kitui', 'Kilifi', 'Baringo', 'West Pokot', 'Nyeri', 'Machakos'],
@@ -20,14 +17,11 @@ dropdown_data = {
 def get_dropdown_data():
     return jsonify(dropdown_data)
 
-# Initialize Spark
+
 spark = SparkSession.builder.appName("FoodPricePrediction").getOrCreate()
 
-# Load the trained pipeline model
-model_path = "models/gbt_price_prediction_model"  # Ensure this path is correct
+model_path = "models/gbt_price_prediction_model"
 model = PipelineModel.load(model_path)
-
-feature_cols = ['region_index', 'county_index', 'market_index', 'category_index', 'commodity_index', 'unit_index', 'latitude', 'longitude']
 
 @app.route('/')
 def home():
@@ -37,19 +31,30 @@ def home():
 def predict():
     try:
         data = request.json
+        
+        sample_data = [Row(
+            region=data['region'],
+            county=data['county'],
+            market=data['market'],
+            category=data['category'],
+            commodity=data['commodity'],
+            unit=data['unit'],
+            latitude=float(data['latitude']),
+            longitude=float(data['longitude'])
+        )]
+        
+        sample_df = spark.createDataFrame(sample_data)
 
-        input_data = spark.createDataFrame([
-            (data['region_index'], data['county_index'], data['market_index'],
-             data['category_index'], data['commodity_index'], data['unit_index'],
-             float(data['latitude']), float(data['longitude']))
-        ], feature_cols)
+        transformed_sample_df = model.transform(sample_df)
 
-        assembler = VectorAssembler(inputCols=feature_cols, outputCol='features')
-        assembled_data = assembler.transform(input_data)
+        predictions = transformed_sample_df.select('prediction').collect()
 
-        prediction = model.transform(assembled_data).select('prediction').collect()[0]['prediction']
+        if predictions:
+            predicted_price = predictions[0]['prediction']
+            return jsonify({'predicted_price': predicted_price})
+        else:
+            return jsonify({'error': 'No prediction generated'})
 
-        return jsonify({'predicted_price': prediction})
     except Exception as e:
         return jsonify({'error': str(e)})
 
