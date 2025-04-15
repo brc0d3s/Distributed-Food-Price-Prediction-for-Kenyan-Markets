@@ -26,7 +26,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="market" class="form-label">Market</label>
-                                <select class="form-select" id="market" name="market" required>
+                                <select class="form-select" id="market" name="market" required disabled>
                                     <option value="" selected disabled>Select Market</option>
                                     {% for market in markets %}
                                         <option value="{{ market }}">{{ market }}</option>

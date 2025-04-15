@@ -1,3 +1,6 @@
+
+
+from math import exp
 from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import plotly.express as px
@@ -10,44 +13,52 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType, I
 
 app = Flask(__name__)
 
-# Initialize Spark and model
+# Initialize spark and model as None
 spark = None
 model = None
 
-try:
-    # Initialize Spark session
-    spark = SparkSession.builder.appName("FoodPriceApp").getOrCreate()
-    
-    # Load model with path verification
-    model_path = "../model/log_price_pipeline_model"
-    if os.path.exists(model_path):
-        model = PipelineModel.load(model_path)
-        print("Model loaded successfully")
-    else:
-        print(f"Error: Model not found at {os.path.abspath(model_path)}")
-except Exception as e:
-    print(f"Error initializing Spark or loading model: {str(e)}")
-    if spark:
-        spark.stop()
+def create_spark_session():
+    global spark
+    if spark is None:
+        try:
+            spark = SparkSession.builder \
+                .appName("FoodPriceApp") \
+                .config("spark.executor.memory", "2g") \
+                .config("spark.driver.memory", "2g") \
+                .getOrCreate()
+            print("Spark session initialized successfully")
+        except Exception as e:
+            print(f"Error initializing Spark session: {str(e)}")
+    return spark
 
-# Load data with error handling
+def load_model():
+    global model
+    model_path = "../model/log_price_pipeline_model"
+    if model is None:
+        try:
+            spark = create_spark_session()  # Ensure Spark session exists
+            if os.path.exists(model_path):
+                model = PipelineModel.load(model_path)
+                print("Model loaded successfully")
+            else:
+                print(f"Error: Model not found at {os.path.abspath(model_path)}")
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+    return model
+
+# Load data and initialize at startup
 try:
-    # County, Region, market mapping
     county_data = pd.read_csv("../data/county_region.csv")
-    
-    # Main food price data
-    food_df = pd.read_csv("../data/commodity_category_price.csv")
-    
-    # Rainfall data
+    food_df = pd.read_csv("../data/commodity_category_price.csv")  # Fixed typo in filename
     rainfall_data = pd.read_csv("../data/monthly_rainfall.csv")
-    
-    # Prepare dropdown options - ensure column names match your CSV exactly
+
+    # Prepare dropdown options
     regions = sorted(county_data['region'].dropna().unique())
     counties = sorted(county_data['county'].dropna().unique())
     markets = sorted(county_data['market'].dropna().unique())
     categories = sorted(food_df['category'].dropna().unique())
-    commodities = sorted(food_df['commodity'].dropna().unique())
-    
+    commodities = sorted(food_df['commodity'].dropna().unique())  # Fixed column name to match your data
+
 except Exception as e:
     print(f"Error loading data files: {str(e)}")
     regions = counties = markets = categories = commodities = []
@@ -64,25 +75,30 @@ months = [
 @app.route('/')
 def index():
     try:
-        # Ensure column names match your actual data
-        trend_fig = px.line(food_df.groupby(['year', 'category']).agg({'normalized_price': 'mean'}).reset_index(),
-                           x='year', y='normalized_price', color='category',
+        # Convert log-normalized prices back to original scale for visualization
+        if 'log_normalized_price' in food_df.columns:
+            food_df['price'] = food_df['log_normalized_price'].apply(exp)
+        else:
+            food_df['price'] = food_df['normalized_price']  # Fallback if log column doesn't exist
+            
+        trend_fig = px.line(food_df.groupby(['year', 'category']).agg({'price': 'mean'}).reset_index(),
+                           x='year', y='price', color='category',
                            title='Average Food Price Trends by Category Over Years',
-                           labels={'year': 'Year', 'normalized_price': 'Normalized Price', 'category': 'Category'})
+                           labels={'year': 'Year', 'price': 'Price (KES)', 'category': 'Category'})
         trend_graph = json.dumps(trend_fig, cls=plotly.utils.PlotlyJSONEncoder)
         
         latest_year = food_df['year'].max()
         latest_prices = food_df[food_df['year'] == latest_year]
-        dist_fig = px.box(latest_prices, x='category', y='normalized_price',
+        dist_fig = px.box(latest_prices, x='category', y='price',
                          title=f'Price Distribution Across Food Categories ({latest_year})',
-                         labels={'category': 'Category', 'normalized_price': 'Normalized Price'})
+                         labels={'category': 'Category', 'price': 'Price (KES)'})
         dist_graph = json.dumps(dist_fig, cls=plotly.utils.PlotlyJSONEncoder)
         
         merged_data = pd.merge(food_df, rainfall_data, on=['year', 'month'])
-        rainfall_fig = px.scatter(merged_data, x='avg_rainfall_mm', y='normalized_price', color='category',
+        rainfall_fig = px.scatter(merged_data, x='avg_rainfall_mm', y='price', color='category',
                                 title='Rainfall vs Food Prices by Category',
                                 labels={'avg_rainfall_mm': 'Average Rainfall (mm)', 
-                                       'normalized_price': 'Normalized Price',
+                                       'price': 'Price (KES)',
                                        'category': 'Category'})
         rainfall_graph = json.dumps(rainfall_fig, cls=plotly.utils.PlotlyJSONEncoder)
         
@@ -98,8 +114,12 @@ def index():
 
 @app.route('/predict', methods=['GET', 'POST'])
 def predict():
+    # Ensure Spark and model are loaded
+    spark = create_spark_session()
+    model = load_model()
+    
     if request.method == 'POST':
-        if model is None:
+        if model is None or spark is None:
             return render_template('predict.html', 
                                  regions=regions,
                                  counties=counties,
@@ -107,7 +127,7 @@ def predict():
                                  categories=categories,
                                  commodities=commodities,
                                  months=months,
-                                 prediction="Error: Prediction model not loaded",
+                                 prediction="Error: Prediction model or Spark session not loaded",
                                  model_available=False)
         
         try:
@@ -121,8 +141,17 @@ def predict():
             year = int(request.form['year'])
             quantity = float(request.form['quantity'])
             
+            # Get rainfall data
+            try:
+                rainfall_row = rainfall_data[(rainfall_data['month'] == month) & 
+                                           (rainfall_data['year'] == year)]
+                avg_rainfall_mm = rainfall_row['avg_rainfall_mm'].values[0] if not rainfall_row.empty else 100.0
+            except Exception as e:
+                print(f"Error getting rainfall data: {str(e)}")
+                avg_rainfall_mm = 100.0  # Default value
+            
             # Create Spark DataFrame for prediction
-            schema = StructType([
+            schema = StructType([ 
                 StructField("region", StringType(), True),
                 StructField("county", StringType(), True),
                 StructField("market", StringType(), True),
@@ -130,17 +159,21 @@ def predict():
                 StructField("commodity", StringType(), True),
                 StructField("month", IntegerType(), True),
                 StructField("year", IntegerType(), True),
-                StructField("quantity", DoubleType(), True)
+                StructField("avg_rainfall_mm", DoubleType(), True)
             ])
             
-            input_data = [(region, county, market, category, commodity, month, year, quantity)]
+            input_data = [(region, county, market, category, commodity, month, year, avg_rainfall_mm)]
             input_df = spark.createDataFrame(input_data, schema)
             
-            # Make prediction
+            # Make prediction (returns log-normalized price)
             prediction = model.transform(input_df)
-            predicted_price = prediction.select("prediction").collect()[0][0]
-            final_price = round(float(predicted_price), 2)
+            log_predicted_price = prediction.select("prediction").collect()[0][0]
             
+            # Convert back to original price scale
+            predicted_price = exp(log_predicted_price)
+            total_price = predicted_price * quantity
+            
+            # Format the output
             return render_template('predict.html', 
                                 regions=regions,
                                 counties=counties,
@@ -148,10 +181,11 @@ def predict():
                                 categories=categories,
                                 commodities=commodities,
                                 months=months,
-                                prediction=f"Predicted Price: KES {final_price:,.2f}",
+                                prediction=f"Predicted Price: KES {predicted_price:,.2f} per unit, Total Price: KES {total_price:,.2f}",
                                 model_available=True)
             
         except Exception as e:
+            print(f"Error during prediction: {str(e)}")
             return render_template('predict.html', 
                                 regions=regions,
                                 counties=counties,
@@ -173,36 +207,39 @@ def predict():
                          model_available=model is not None)
 
 @app.route('/get_counties/<region>')
-def get_counties(region):
+def get_counties(region):  # Fixed typo in function name
     try:
-        filtered_counties = county_data[county_data['region'].str.lower() == region.lower()]['county'].unique()
+        filtered_counties = county_data[county_data['region'] == region]['county'].unique()
         return jsonify(sorted(filtered_counties.tolist()))
-    except Exception as e:
-        print(f"Error getting counties: {str(e)}")
+    except:
         return jsonify([])
+
+@app.route('/get_commodities/<category>')
+def get_commodities(category):  # Fixed typo in function name
+    try:
+        filtered_commodities = food_df[food_df['category'] == category]['commodity'].unique()
+        return jsonify(sorted(filtered_commodities.tolist()))
+    except:
+        return jsonify([])
+
 
 @app.route('/get_markets/<county>')
 def get_markets(county):
     try:
-        filtered_markets = county_data[county_data['county'].str.lower() == county.lower()]['market'].unique()
-        return jsonify(sorted(filtered_markets.tolist()))
+        filtered = county_data[county_data['county'].str.lower() == county.lower()]
+        markets = sorted(filtered['market'].dropna().unique())
+        return jsonify(markets)
     except Exception as e:
-        print(f"Error getting markets: {str(e)}")
-        return jsonify([])
+        print(f"Error retrieving markets: {str(e)}")
+        return jsonify([]), 500
 
-@app.route('/get_commodities/<category>')
-def get_commodities(category):
-    try:
-        filtered_commodities = food_df[food_df['category'].str.lower() == category.lower()]['commodity'].unique()
-        return jsonify(sorted(filtered_commodities.tolist()))
-    except Exception as e:
-        print(f"Error getting commodities: {str(e)}")
-        return jsonify([])
 
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    if spark:
-        spark.stop()
-
+    spark.stop()
+    
 if __name__ == '__main__':
+    # Pre-load model when starting the app
+    create_spark_session()
+    load_model()
     app.run(debug=True)

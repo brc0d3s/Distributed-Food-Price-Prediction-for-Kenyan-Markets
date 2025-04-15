@@ -1,1 +1,0 @@
-{"class":"org.apache.spark.ml.feature.StringIndexerModel","timestamp":1744690573339,"sparkVersion":"3.5.4","uid":"StringIndexer_6e709f9d375c","paramMap":{"outputCol":"county_indexed","handleInvalid":"keep","inputCol":"county"},"defaultParamMap":{"outputCol":"StringIndexer_6e709f9d375c__output","stringOrderType":"frequencyDesc","handleInvalid":"error"}}
