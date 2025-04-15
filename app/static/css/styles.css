@@ -1,0 +1,26 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.graph-container {
+    height: 400px;
+    width: 100%;
+}
+
+.card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.alert {
+    margin-top: 20px;
+}

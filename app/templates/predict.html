@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 class="text-center mb-4">Food Price Prediction</h1>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="/predict">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="region" class="form-label">Region</label>
+                                <select class="form-select" id="region" name="region" required>
+                                    <option value="" selected disabled>Select Region</option>
+                                    {% for region in regions %}
+                                        <option value="{{ region }}">{{ region }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="county" class="form-label">County</label>
+                                <select class="form-select" id="county" name="county" required disabled>
+                                    <option value="" selected disabled>Select County</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="market" class="form-label">Market</label>
+                                <select class="form-select" id="market" name="market" required>
+                                    <option value="" selected disabled>Select Market</option>
+                                    {% for market in markets %}
+                                        <option value="{{ market }}">{{ market }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="category" class="form-label">Category</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="" selected disabled>Select Category</option>
+                                    {% for category in categories %}
+                                        <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="commodity" class="form-label">Commodity</label>
+                                <select class="form-select" id="commodity" name="commodity" required disabled>
+                                    <option value="" selected disabled>Select Commodity</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="month" class="form-label">Month</label>
+                                <select class="form-select" id="month" name="month" required>
+                                    <option value="" selected disabled>Select Month</option>
+                                    {% for month in months %}
+                                        <option value="{{ month.value }}">{{ month.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="year" class="form-label">Year</label>
+                                <input type="number" class="form-control" id="year" name="year" 
+                                       min="2020" max="2050" value="2025" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="quantity" class="form-label">Quantity (KG/L)</label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" 
+                                       min="0.1" step="0.1" value="1.0" required>
+                            </div>
+                            <div class="col-12 mt-3">
+                                <button type="submit" class="btn btn-primary w-100">Predict Price</button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    {% if prediction %}
+                        <div class="alert alert-info mt-3 text-center">
+                            <h4>{{ prediction }}</h4>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
